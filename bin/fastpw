@@ -1,0 +1,202 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+APP_NAME="FastPW"
+APP_VERSION="1.1.1"
+
+LIB_DIR="$(cd "$(dirname "$0")/../lib" >/dev/null 2>&1 && pwd -P)"
+
+# Source modular libs (order matters)
+. "${LIB_DIR}/platform.sh"
+. "${LIB_DIR}/ui.sh"
+. "${LIB_DIR}/clipboard.sh"
+. "${LIB_DIR}/store.sh"
+. "${LIB_DIR}/menu.sh"
+
+print_usage() {
+  if command -v gum >/dev/null 2>&1; then
+    gum style --border normal --padding "1 2" --border-foreground "${THEME_BORDER}" --foreground "${THEME_HEADER_FG}" $(style_bg_opt) \
+      "${APP_NAME} - super-fast password manager CLI"
+    gum style --foreground "${THEME_PRIMARY}" $(style_bg_opt) "Usage:"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw [--demo] [--version] [--help] [--init] [--list]"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw copy [--company NAME] [--login NAME] [--field NAME] [--print]"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw logout"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw search"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw change-master"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw company add NAME | rm NAME | rename OLD NEW | mv NAME INDEX"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw login add --company NAME --login NAME | rm --company NAME --login NAME | rename --company NAME --login OLD --new NEW | mv --company SRC --login NAME [--to INDEX] [--dest-company DEST]"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw field set --company NAME --login NAME --field NAME --value VALUE | rm --company NAME --login NAME --field NAME"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  fastpw reset"
+    gum style --foreground "${THEME_PRIMARY}" $(style_bg_opt) "Options:"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  --demo       Run a non-interactive demo to validate setup"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  --init       Initialize encrypted store with seed data (uses master password)"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  --list       Non-interactive list of companies and logins"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  --version    Print version and exit"
+    gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) "  --help       Show this help text"
+  else
+    cat <<EOF
+${APP_NAME} - super-fast password manager CLI
+
+Usage:
+  fastpw [--demo] [--version] [--help] [--init] [--list]
+  fastpw copy [--company NAME] [--login NAME] [--field NAME] [--print]
+  fastpw logout
+  fastpw search           # global search across all fields
+  fastpw change-master    # re-encrypt store with a new master password
+  fastpw company add NAME | rm NAME | rename OLD NEW | mv NAME INDEX
+  fastpw login add --company NAME --login NAME | rm --company NAME --login NAME | rename --company NAME --login OLD --new NEW | mv --company SRC --login NAME [--to INDEX] [--dest-company DEST]
+  fastpw field set --company NAME --login NAME --field NAME --value VALUE | rm --company NAME --login NAME --field NAME
+  fastpw reset            # reinitialize store with seed data (DANGEROUS)
+
+Options:
+  --demo       Run a non-interactive demo to validate setup
+  --init       Initialize encrypted store with seed data (uses master password)
+  --list       Non-interactive list of companies and logins
+  --version    Print version and exit
+  --help       Show this help text
+
+EOF
+  fi
+}
+
+main() {
+  local arg
+  arg="${1-}"
+  case "${arg}" in
+    --version)
+      echo "${APP_NAME} v${APP_VERSION}"
+      ;;
+    --help|-h)
+      print_usage
+      ;;
+    --demo|-d)
+      demo_mode
+      ;;
+    --init)
+      bootstrap_dir
+      init_if_missing
+      if command -v gum >/dev/null 2>&1; then gum style --foreground "${THEME_OK}" $(style_bg_opt) --bold "Initialized encrypted store at ${DATA_FILE}"; else echo "Initialized encrypted store at ${DATA_FILE}"; fi
+      show_done_pause
+      ;;
+    --list)
+      bootstrap_dir
+      if [ ! -f "${DATA_FILE}" ]; then
+        echo "Encrypted store not found. Run: fastpw --init" >&2
+        exit 1
+      fi
+      if command -v gum >/dev/null 2>&1; then
+        gum style --foreground "${THEME_PRIMARY}" $(style_bg_opt) --bold "Companies:"
+        list_companies | gum style --foreground "${THEME_SECONDARY}" $(style_bg_opt) --padding "${GUM_STYLE_PADDING:-"0 1"}"
+      else
+        echo "Companies:" && list_companies | sed 's/^/  - /'
+      fi
+      ;;
+    reset)
+      rm -f "${DATA_FILE}" "${SESSION_FILE}"
+      init_if_missing
+      if command -v gum >/dev/null 2>&1; then gum style --foreground "${THEME_ERR}" $(style_bg_opt) --bold "Store reset with seed data at ${DATA_FILE}"; else echo "Store reset with seed data at ${DATA_FILE}"; fi
+      show_done_pause
+      ;;
+    copy)
+      shift || true
+      local company="" login="" field="" print_flag=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --company)
+            company="$2"; shift 2 || true ;;
+          --login)
+            login="$2"; shift 2 || true ;;
+          --field)
+            field="$2"; shift 2 || true ;;
+          --print)
+            print_flag="print"; shift || true ;;
+          *)
+            shift || true ;;
+        esac
+      done
+      copy_flow "${company}" "${login}" "${field}" "${print_flag}"
+      ;;
+    logout)
+      rm -f "${SESSION_FILE}"
+      echo "Session cache cleared."
+      ;;
+    search)
+      search_and_copy
+      ;;
+    change-master)
+      change_master
+      ;;
+    company)
+      shift || true
+      case "${1-}" in
+        add)
+          shift; company_add "$1" ;;
+        rm)
+          shift; company_rm "$1" ;;
+        rename)
+          shift; local old new; old="$1"; new="$2"; company_rename "$old" "$new" ;;
+        mv)
+          shift; local nm idx; nm="$1"; idx="$2"; company_mv "$nm" "$idx" ;;
+        *) echo "Usage: fastpw company add NAME | rm NAME" >&2; exit 1 ;;
+      esac
+      ;;
+    login)
+      shift || true
+      case "${1-}" in
+        add)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local c l; c="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          l="$2"; login_add "$c" "$l" ;;
+        rm)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local c l; c="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          l="$2"; login_rm "$c" "$l" ;;
+        rename)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local c l n; c="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          l="$2"; shift 2; [ "${1-}" = "--new" ] || { echo "--new required" >&2; exit 1; }
+          n="$2"; login_rename "$c" "$l" "$n" ;;
+        mv)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local sc ln to_idx=-1 dc=""; sc="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          ln="$2"; shift 2 || true
+          while [ $# -gt 0 ]; do
+            case "$1" in
+              --to)
+                to_idx="$2"; shift 2 || true ;;
+              --dest-company)
+                dc="$2"; shift 2 || true ;;
+              *) shift || true ;;
+            esac
+          done
+          login_mv "$sc" "$ln" "${dc}" "${to_idx}" ;;
+        *) echo "Usage: fastpw login add --company NAME --login NAME | rm --company NAME --login NAME" >&2; exit 1 ;;
+      esac
+      ;;
+    field)
+      shift || true
+      case "${1-}" in
+        set)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local c l f v; c="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          l="$2"; shift 2; [ "${1-}" = "--field" ] || { echo "--field required" >&2; exit 1; }
+          f="$2"; shift 2; [ "${1-}" = "--value" ] || { echo "--value required" >&2; exit 1; }
+          v="$2"; field_set "$c" "$l" "$f" "$v" ;;
+        rm)
+          shift; [ "${1-}" = "--company" ] || { echo "--company required" >&2; exit 1; }
+          local c l f; c="$2"; shift 2; [ "${1-}" = "--login" ] || { echo "--login required" >&2; exit 1; }
+          l="$2"; shift 2; [ "${1-}" = "--field" ] || { echo "--field required" >&2; exit 1; }
+          f="$2"; field_rm "$c" "$l" "$f" ;;
+        *) echo "Usage: fastpw field set --company NAME --login NAME --field NAME --value VALUE | rm --company NAME --login NAME --field NAME" >&2; exit 1 ;;
+      esac
+      ;;
+    *)
+      show_main_menu
+      ;;
+  esac
+}
+
+main "${@-}"
+
+

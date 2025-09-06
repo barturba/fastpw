@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# Usage:
+#   bin/release patch    # bump bug-fix version (x.y.Z)
+#   bin/release minor    # bump feature version (x.Y.0)
+#   bin/release major    # bump breaking version (X.0.0)
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." >/dev/null 2>&1 && pwd -P)"
+FASTPW_FILE="${REPO_ROOT}/bin/fastpw"
+
+kind="${1-}"
+if [[ -z "${kind}" ]]; then
+  echo "Specify bump kind: patch | minor | major" >&2
+  exit 1
+fi
+
+if ! [[ -f "${FASTPW_FILE}" ]]; then
+  echo "Cannot find ${FASTPW_FILE}" >&2
+  exit 1
+fi
+
+current_version=$(grep -E '^APP_VERSION=' "${FASTPW_FILE}" | sed -E 's/.*"([0-9]+\.[0-9]+\.[0-9]+)".*/\1/')
+if [[ -z "${current_version}" ]]; then
+  echo "Could not parse APP_VERSION from ${FASTPW_FILE}" >&2
+  exit 1
+fi
+
+IFS='.' read -r major minor patch <<<"${current_version}"
+case "${kind}" in
+  patch) patch=$((patch + 1)) ;;
+  minor) minor=$((minor + 1)); patch=0 ;;
+  major) major=$((major + 1)); minor=0; patch=0 ;;
+  *) echo "Unknown bump kind: ${kind}" >&2; exit 1 ;;
+esac
+
+new_version="${major}.${minor}.${patch}"
+
+echo "Bumping: v${current_version} -> v${new_version}"
+
+sed_inplace() {
+  local file="$1" pattern="$2" replacement="$3"
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    sed -E -i '' -e "s/${pattern}/${replacement}/" "${file}"
+  else
+    sed -E -i "s/${pattern}/${replacement}/" "${file}"
+  fi
+}
+
+pattern='^(APP_VERSION=)"[0-9]+\.[0-9]+\.[0-9]+"$'
+replacement="\\1\"${new_version}\""
+sed_inplace "${FASTPW_FILE}" "${pattern}" "${replacement}"
+
+git add "${FASTPW_FILE}"
+git commit -m "chore(version): bump to v${new_version}"
+git tag -a "v${new_version}" -m "v${new_version}"
+git push
+git push --tags
+
+echo "Done: v${new_version}"
+
+
