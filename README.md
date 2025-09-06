@@ -1,6 +1,6 @@
 ## FastPW
 
-![Demo](demo-1.1.0.gif)
+![Demo](demo-1.1.2.gif)
 
 Fast, minimal CLI to store encrypted logins and copy fields from the terminal.
 
