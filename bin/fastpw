@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_NAME="FastPW"
-APP_VERSION="1.1.3"
+APP_VERSION="1.1.4"
 
 LIB_DIR="$(cd "$(dirname "$0")/../lib" >/dev/null 2>&1 && pwd -P)"
 
@@ -64,6 +64,9 @@ main() {
   local arg
   arg="${1-}"
   case "${arg}" in
+    menu)
+      show_main_menu
+      ;;
     --version)
       echo "${APP_NAME} v${APP_VERSION}"
       ;;
@@ -192,7 +195,8 @@ main() {
       esac
       ;;
     *)
-      show_main_menu
+      # Default interactive entry: jump straight into company browser
+      company_browser
       ;;
   esac
 }
