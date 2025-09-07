@@ -137,16 +137,16 @@ BACK_TO_LABEL() { printf "⬅ Back to %s" "$1"; }
 
 # Hints shown in headers for each component type
 _hint_choose() {
-  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_PRIMARY} ↑/↓) move • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC) back"
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_PRIMARY} ↑/↓) move • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC ESC) back"
 }
 _hint_filter() {
-  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )type to filter • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC) back"
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )type to filter • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC ESC) back"
 }
 _hint_input()  {
-  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_ACCENT} Enter) submit • $(ansi_fg ${THEME_WARN} ESC) cancel"
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_ACCENT} Enter) submit • $(ansi_fg ${THEME_WARN} ESC ESC) cancel"
 }
 _hint_multi()  {
-  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )Space toggle • $(ansi_fg ${THEME_ACCENT} Enter) confirm • $(ansi_fg ${THEME_WARN} ESC) cancel"
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )Space toggle • $(ansi_fg ${THEME_ACCENT} Enter) confirm • $(ansi_fg ${THEME_WARN} ESC ESC) cancel"
 }
 
 # Centralized clipboard copy (cross-platform)
