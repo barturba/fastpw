@@ -45,6 +45,37 @@ init_theme() {
 
 init_theme
 
+# ANSI helpers for inline color (works inside gum headers/text)
+# Usage: ansi_fg 213 "text"
+ansi_fg() {
+  local color text
+  color="$1"; shift || true
+  text="$*"
+  printf "\033[38;5;%sm%s\033[0m" "${color}" "${text}"
+}
+
+# Colorize words by cycling through accent/primary/secondary
+# Usage: colorize_words "Some Header Text"
+colorize_words() {
+  local words=()
+  local w i=0 out="" colors=()
+  words=("$@")
+  colors=(${THEME_ACCENT} ${THEME_PRIMARY} ${THEME_SECONDARY})
+  for w in "${words[@]}"; do
+    if [ -n "${out}" ]; then out+=" "; fi
+    out+="$(ansi_fg "${colors[$((i%3))]}" "$w")"
+    i=$((i+1))
+  done
+  printf "%s" "$out"
+}
+
+# Decorate a header string by colorizing its words
+decorate_header_text() {
+  # shellcheck disable=SC2206
+  local arr=("$@")
+  colorize_words "${arr[@]}"
+}
+
 # Export consistent color theming for gum components
 export_gum_theme() {
   if ! command -v gum >/dev/null 2>&1; then return 0; fi
@@ -105,10 +136,18 @@ BACK_LABEL() { printf "%s" "⬅ Back"; }
 BACK_TO_LABEL() { printf "⬅ Back to %s" "$1"; }
 
 # Hints shown in headers for each component type
-_hint_choose() { printf "%s" "Hint: ↑/↓ move • Enter select • ESC back"; }
-_hint_filter() { printf "%s" "Hint: type to filter • Enter select • ESC back"; }
-_hint_input()  { printf "%s" "Hint: Enter submit • ESC cancel"; }
-_hint_multi()  { printf "%s" "Hint: Space toggle • Enter confirm • ESC cancel"; }
+_hint_choose() {
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_PRIMARY} ↑/↓) move • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC) back"
+}
+_hint_filter() {
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )type to filter • $(ansi_fg ${THEME_ACCENT} Enter) select • $(ansi_fg ${THEME_WARN} ESC) back"
+}
+_hint_input()  {
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )$(ansi_fg ${THEME_ACCENT} Enter) submit • $(ansi_fg ${THEME_WARN} ESC) cancel"
+}
+_hint_multi()  {
+  printf "%s" "$(ansi_fg ${THEME_ACCENT} Hint: )Space toggle • $(ansi_fg ${THEME_ACCENT} Enter) confirm • $(ansi_fg ${THEME_WARN} ESC) cancel"
+}
 
 # Centralized clipboard copy (cross-platform)
 copy_to_clipboard() {
@@ -218,10 +257,14 @@ print_header() {
     local left_padding=$((center_pos - header_width / 2))
     if [ ${left_padding} -lt 0 ]; then left_padding=0; fi
 
+    local h1 h2 h3
+    h1=$(decorate_header_text "✨" "${APP_NAME}")
+    h2=$(decorate_header_text password manager CLI)
+    h3=$(decorate_header_text "v${APP_VERSION}")
     gum style --border double --padding "0 0 0 ${left_padding}" \
       --width "${header_width}" \
       --foreground "${THEME_HEADER_FG}" --border-foreground "${THEME_BORDER}" $(style_header_bg_opt) \
-      "✨ ${APP_NAME}" "password manager CLI" "v${APP_VERSION}"
+      "${h1}" "${h2}" "${h3}"
   else
     echo "${APP_NAME} (v${APP_VERSION})"
     echo "password manager CLI"
