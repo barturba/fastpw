@@ -537,14 +537,14 @@ render_menu() {
   if [ -n "$header" ]; then
     local combined_header
     combined_header=$(printf "%s\n%s" "$header" "$(_hint_choose)")
-    gum choose --header "$combined_header" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" $(gum_width_opt choose "$(calc_input_width)") --select-if-one $(gum_timeout_opt) "${items[@]}"
+    gum choose --header "$combined_header" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" $(gum_width_opt choose "$(calc_input_width)") $(gum_timeout_opt) "${items[@]}"
   else
     GUM_CHOOSE_CURSOR_FOREGROUND="${THEME_CHOOSE_CURSOR}" \
     GUM_CHOOSE_SELECTED_FOREGROUND="${THEME_CHOOSE_SELECTED_FG}" \
     GUM_CHOOSE_ITEM_FOREGROUND="${THEME_CHOOSE_ITEM_FG}" \
     GUM_CHOOSE_SELECTED_PREFIX="✔" \
     GUM_CHOOSE_UNSELECTED_PREFIX=" " \
-    gum choose --header "$(_hint_choose)" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" --select-if-one $(gum_timeout_opt) "${items[@]}"
+    gum choose --header "$(_hint_choose)" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" $(gum_timeout_opt) "${items[@]}"
   fi
 }
 
@@ -581,9 +581,9 @@ render_filter() {
   if [ -n "$header" ]; then
     local combined_header
     combined_header=$(printf "%s\n%s" "$header" "$(_hint_filter)")
-    cat | gum filter --header "$combined_header" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
+    cat | gum filter --header "$combined_header" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") $(gum_timeout_opt)
   else
-    cat | gum filter --header "$(_hint_filter)" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
+    cat | gum filter --header "$(_hint_filter)" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") $(gum_timeout_opt)
   fi
 }
 
