@@ -78,16 +78,10 @@ browse_and_copy() {
   company=$(list_companies | render_filter "Select company…" "") || { clear_screen; return 0; }
   while true; do
     setup_submenu
-    login=$( (BACK_LABEL; list_logins_for_company "$company") | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
-    if [ "${login}" = "⬅ Back" ]; then
-      return 0
-    fi
+    login=$(list_logins_for_company "$company" | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
     while true; do
       setup_submenu
-      field=$( (BACK_TO_LABEL "logins"; list_fields_for_login "$company" "$login") | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
-      if [ "${field}" = "$(BACK_TO_LABEL "logins")" ]; then
-        break
-      fi
+      field=$(list_fields_for_login "$company" "$login" | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
       value=$(get_field_value "$company" "$login" "$field")
       if [ -z "${value}" ] || [ "${value}" = "null" ]; then
         gum_err "No value for '$field'"
@@ -108,16 +102,10 @@ browse_company() {
   [ -n "${company}" ] || return 0
   while true; do
     setup_submenu
-    login=$( (BACK_LABEL; list_logins_for_company "$company") | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
-    if [ "${login}" = "$(BACK_LABEL)" ]; then
-      return 0
-    fi
+    login=$(list_logins_for_company "$company" | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
     while true; do
       setup_submenu
-      field=$( (BACK_TO_LABEL "logins"; list_fields_for_login "$company" "$login") | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
-      if [ "${field}" = "$(BACK_TO_LABEL "logins")" ]; then
-        break
-      fi
+      field=$(list_fields_for_login "$company" "$login" | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
       value=$(get_field_value "$company" "$login" "$field")
       if [ -z "${value}" ] || [ "${value}" = "null" ]; then
         gum_err "No value for '$field'"
@@ -147,22 +135,11 @@ field_browser() {
     local selection
     selection=$(
       {
-        # Fields first (so default highlight is a field)
         if [ -n "${preselect_field}" ]; then echo "${preselect_field}"; fi
         list_fields_for_login "${company}" "${login}" | awk -v p="${preselect_field}" 'p=="" || $0!=p'
-        # Back options at the bottom
-        BACK_TO_LABEL "logins"
-        BACK_TO_LABEL "companies"
       } | \
       render_filter "Select field to copy…" "Company: ${company} • Login: ${login}"
     ) || { clear_screen; return 0; }
-
-    case "${selection}" in
-      "$(BACK_TO_LABEL "logins")")
-        return 0 ;;
-      "$(BACK_TO_LABEL "companies")")
-        return 2 ;;
-    esac
 
     local value
     value=$(get_field_value "${company}" "${login}" "${selection}")
@@ -189,36 +166,15 @@ login_browser() {
     setup_submenu
     selection=$(
       {
-        # Logins first (so default highlight is a login)
         if [ -n "${preselect_login}" ]; then echo "${preselect_login}"; fi
         list_logins_for_company "${company}" | awk -v p="${preselect_login}" 'p=="" || $0!=p'
-        # Options after the logins
-        echo "➕ Add Login"
-        echo "🛠️ Manage Logins"
-        BACK_TO_LABEL "companies"
       } | \
       render_filter "Select login…" "Company: ${company}"
     ) || { clear_screen; return 0; }
 
-    case "${selection}" in
-      "$(BACK_TO_LABEL "companies")")
-        return 0 ;;
-      "➕ Add Login")
-        interactive_add_login_for_company "${company}" ;;
-      "🛠️ Manage Logins")
-        manage_logins_menu ;;
-      *)
-        # Enter field browser; if it returns 2, bubble up to companies
-        local rc
-        field_browser "${company}" "${selection}" "${LAST_FIELD_SELECTED-}"
-        rc=$?
-        LAST_LOGIN_SELECTED="${selection}"
-        if [ ${rc} -eq 2 ]; then
-          return 0
-        fi
-        ;;
-    esac
-    # Preselect last used login on next iteration
+    # Enter field browser; after returning, continue in this company
+    field_browser "${company}" "${selection}" "${LAST_FIELD_SELECTED-}"
+    LAST_LOGIN_SELECTED="${selection}"
     preselect_login="${LAST_LOGIN_SELECTED-}"
   done
 }
@@ -237,7 +193,6 @@ company_browser() {
         echo "🔎 Search"
         echo "🛠️ Manage"
         echo "⚙️ Settings"
-        echo "⋯ Menu"
         echo "Quit"
       } | \
       render_filter "Select company…" ""
@@ -250,8 +205,6 @@ company_browser() {
         manage_menu ;;
       "⚙️ Settings")
         settings_menu ;;
-      "⋯ Menu")
-        show_main_menu ;;
       "Quit")
         clear_screen; return 0 ;;
       *)

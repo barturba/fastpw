@@ -13,7 +13,6 @@ show_main_menu() {
     action=$(render_menu --header "Main Menu" \
       "🔎 Search" \
       "🗂️ Browse & Copy" \
-      "➕ Add Login" \
       "🛠️ Manage" \
       "⚙️ Settings" \
       "🚪 Logout" \
@@ -25,8 +24,6 @@ show_main_menu() {
         search_and_copy ;;
       *"🗂️ Browse & Copy"*)
         browse_and_copy ;;
-      *"➕ Add Login"*)
-        interactive_add_login ;;
       *"🛠️ Manage"*)
         manage_menu ;;
       *"⚙️ Settings"*)

@@ -49,8 +49,7 @@ settings_menu() {
 
     action=$(render_menu --header "Settings" \
       "🔑 Change Master" \
-      "♻️ Reset" \
-      "$(BACK_LABEL)") || { clear_screen; return 0; }
+      "♻️ Reset") || { clear_screen; return 0; }
 
     case "${action}" in
       "🔑 Change Master"|"Change Master")

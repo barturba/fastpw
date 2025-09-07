@@ -12,8 +12,7 @@ manage_menu() {
 
     action=$(render_menu --header "Manage" \
       "🏢 Companies" \
-      "🔐 Logins" \
-      "$(BACK_LABEL)") || { clear_screen; return 0; }
+      "🔐 Logins") || { clear_screen; return 0; }
 
     case "${action}" in
       "🏢 Companies"|"Companies")
@@ -36,7 +35,7 @@ manage_companies_menu() {
     local action
 
     action=$(render_menu --header "🏢 Companies – choose an action" \
-      "➕ Add Company" "✏️ Rename Company" "🗑️ Remove Company" "↕️ Move Company" "$(BACK_LABEL)") || { clear_screen; return 0; }
+      "➕ Add Company" "✏️ Rename Company" "🗑️ Remove Company" "↕️ Move Company") || { clear_screen; return 0; }
     case "${action}" in
       "➕ Add Company")
         local name
@@ -91,7 +90,7 @@ manage_logins_menu() {
       local action
 
       action=$(render_menu --header "🔐 Logins @ ${company} – choose an action" \
-        "➕ Add Login" "✏️ Rename Login" "🗑️ Remove Login" "🗑️ Remove Login(s)" "↕️ Move Login" "$(BACK_LABEL)") || { clear_screen; break; }
+        "➕ Add Login" "✏️ Rename Login" "🗑️ Remove Login" "🗑️ Remove Login(s)" "↕️ Move Login") || { clear_screen; break; }
       case "${action}" in
         "➕ Add Login")
           interactive_add_login_for_company "${company}"
@@ -144,10 +143,8 @@ EOF
           break ;;
       esac
     done
-    # After finishing with a company, ask if we should pick another
-    local again
-    again=$(render_menu "choose another company" "back to main") || { clear_screen; return 0; }
-    [ "${again}" = "choose another company" ] || return 0
+    # Loop back to choose another company; ESC at the company selector will return to Manage
+    continue
   done
 }
 
