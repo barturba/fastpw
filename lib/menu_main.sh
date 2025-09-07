@@ -10,7 +10,7 @@ show_main_menu() {
     setup_screen
     local action
 
-    action=$(gum choose --height "$(calc_menu_height)" --padding "0 4 0 4" $(gum_width_opt choose "$(calc_input_width)") --select-if-one $(gum_timeout_opt) \
+    action=$(render_menu --header "Main Menu" \
       "🔎 Search" \
       "🗂️ Browse & Copy" \
       "➕ Add Login" \
@@ -32,7 +32,7 @@ show_main_menu() {
       *"⚙️ Settings"*)
         settings_menu ;;
       *"🚪 Logout"*)
-        if gum confirm --affirmative "Yes" --negative "No" --padding "${GUM_CONFIRM_PADDING:-"0 1"}" $(gum_timeout_opt) "Logout and clear session?"; then
+        if render_confirm "Logout and clear session?" "Yes" "No"; then
           rm -f "${SESSION_FILE}" && gum_warn "Session cleared."
         fi ;;
       *"Quit"*)

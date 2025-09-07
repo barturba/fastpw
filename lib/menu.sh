@@ -18,9 +18,9 @@ interactive_add_login() {
   local company login
 
   company=$( (list_companies; echo "➕ New company…") | \
-    gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Choose or create company…") || { clear_screen; return 0; }
+    render_filter "Choose or create company…" "") || { clear_screen; return 0; }
   if [ "${company}" = "➕ New company…" ]; then
-    company=$(gum input --placeholder "New company name" --prompt "🏢 " --width "$(calc_input_width)" --padding "${GUM_INPUT_PADDING:-"0 1"}" $(gum_timeout_opt)) || { clear_screen; return 1; }
+    company=$(render_input "New company name" "🏢 ") || { clear_screen; return 1; }
     [ -n "${company}" ] || return 1
     company_add "${company}"
   fi

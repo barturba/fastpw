@@ -9,12 +9,12 @@ search_and_copy() {
   local choice company login field value
   setup_screen
   choice=$(decrypt_data | jq -r '.companies[] as $c | $c.logins[] as $l | ($l.fields | to_entries[]) | [$c.name, $l.name, .key] | @tsv' | \
-    gum filter --placeholder "Search…" --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)) || { clear_screen; return 0; }
+    render_filter "Search…" "Global Search") || { clear_screen; return 0; }
   choice=$(printf "%s" "${choice}" )
   IFS=$'\t' read -r company login field <<<"${choice}"
   value=$(get_field_value "$company" "$login" "$field")
   [ -n "${value}" ] && [ "${value}" != "null" ] || { gum_err "No value"; return 1; }
-  with_spin "Copying ${field} to clipboard…" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+  copy_with_spin "Copying ${field} to clipboard…" "${value}"
   post_copy_animation "Copied '$field' for ${login} @ ${company}!"
   # Drop into continuous field browser for fast repeat
   clear_screen
@@ -30,22 +30,19 @@ copy_flow() {
   if [ -z "${company}" ]; then
     require_gum
     setup_screen
-    company=$(list_companies | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select company…") || { clear_screen; exit 0; }
+    company=$(list_companies | render_filter "Select company…" "") || { clear_screen; exit 0; }
     had_prompt=1
   fi
   if [ -z "${login}" ]; then
     require_gum
     setup_screen
-    login=$(list_logins_for_company "$company" | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select login…") || { clear_screen; exit 0; }
+    login=$(list_logins_for_company "$company" | render_filter "Select login…" "Company: ${company}") || { clear_screen; exit 0; }
     had_prompt=1
   fi
   if [ -z "${field}" ]; then
     require_gum
     setup_screen
-    field=$(list_fields_for_login "$company" "$login" | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select field…") || { clear_screen; exit 0; }
+    field=$(list_fields_for_login "$company" "$login" | render_filter "Select field…" "Company: ${company} • Login: ${login}") || { clear_screen; exit 0; }
     had_prompt=1
   fi
   local value
@@ -62,7 +59,7 @@ copy_flow() {
     printf "%s" "${value}"
     return 0
   fi
-  with_spin "Copying ${field} to clipboard…" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+  copy_with_spin "Copying ${field} to clipboard…" "${value}"
   if command -v gum >/dev/null 2>&1; then
     post_copy_animation "Copied '$field' for ${login} @ ${company}!"
     if [ ${had_prompt} -eq 1 ]; then
@@ -78,20 +75,17 @@ browse_and_copy() {
   require_gum
   local company login field value
   setup_screen
-  company=$(list_companies | \
-    gum filter --placeholder "Select company…" --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)) || { clear_screen; return 0; }
+  company=$(list_companies | render_filter "Select company…" "") || { clear_screen; return 0; }
   while true; do
     setup_submenu
-    login=$( (echo "⬅ Back"; list_logins_for_company "$company") | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select login…") || { clear_screen; return 0; }
+    login=$( (BACK_LABEL; list_logins_for_company "$company") | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
     if [ "${login}" = "⬅ Back" ]; then
       return 0
     fi
     while true; do
       setup_submenu
-      field=$( (echo "⬅ Back to logins"; list_fields_for_login "$company" "$login") | \
-        gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select field to copy…") || { clear_screen; break; }
-      if [ "${field}" = "⬅ Back to logins" ]; then
+      field=$( (BACK_TO_LABEL "logins"; list_fields_for_login "$company" "$login") | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
+      if [ "${field}" = "$(BACK_TO_LABEL "logins")" ]; then
         break
       fi
       value=$(get_field_value "$company" "$login" "$field")
@@ -99,7 +93,7 @@ browse_and_copy() {
         gum_err "No value for '$field'"
         continue
       fi
-      with_spin "Copying ${field} to clipboard…" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+      copy_with_spin "Copying ${field} to clipboard…" "${value}"
       post_copy_animation "Copied '$field' for ${login} @ ${company}!"
       # After copy, go back to selecting a login within the same company
       break
@@ -114,16 +108,14 @@ browse_company() {
   [ -n "${company}" ] || return 0
   while true; do
     setup_submenu
-    login=$( (echo "⬅ Back"; list_logins_for_company "$company") | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select login…") || { clear_screen; return 0; }
-    if [ "${login}" = "⬅ Back" ]; then
+    login=$( (BACK_LABEL; list_logins_for_company "$company") | render_filter "Select login…" "Company: ${company}") || { clear_screen; return 0; }
+    if [ "${login}" = "$(BACK_LABEL)" ]; then
       return 0
     fi
     while true; do
       setup_submenu
-      field=$( (echo "⬅ Back to logins"; list_fields_for_login "$company" "$login") | \
-        gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select field to copy…") || { clear_screen; break; }
-      if [ "${field}" = "⬅ Back to logins" ]; then
+      field=$( (BACK_TO_LABEL "logins"; list_fields_for_login "$company" "$login") | render_filter "Select field to copy…" "Company: ${company} • Login: ${login}") || { clear_screen; break; }
+      if [ "${field}" = "$(BACK_TO_LABEL "logins")" ]; then
         break
       fi
       value=$(get_field_value "$company" "$login" "$field")
@@ -131,7 +123,7 @@ browse_company() {
         gum_err "No value for '$field'"
         continue
       fi
-      with_spin "Copying ${field} to clipboard…" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+      copy_with_spin "Copying ${field} to clipboard…" "${value}"
       post_copy_animation "Copied '$field' for ${login} @ ${company}!"
       break
     done
@@ -159,16 +151,16 @@ field_browser() {
         if [ -n "${preselect_field}" ]; then echo "${preselect_field}"; fi
         list_fields_for_login "${company}" "${login}" | awk -v p="${preselect_field}" 'p=="" || $0!=p'
         # Back options at the bottom
-        echo "⬅ Back to logins"
-        echo "⬅ Back to companies"
+        BACK_TO_LABEL "logins"
+        BACK_TO_LABEL "companies"
       } | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select field to copy…"
+      render_filter "Select field to copy…" "Company: ${company} • Login: ${login}"
     ) || { clear_screen; return 0; }
 
     case "${selection}" in
-      "⬅ Back to logins")
+      "$(BACK_TO_LABEL "logins")")
         return 0 ;;
-      "⬅ Back to companies")
+      "$(BACK_TO_LABEL "companies")")
         return 2 ;;
     esac
 
@@ -178,7 +170,7 @@ field_browser() {
       gum_err "No value for '${selection}'"
       continue
     fi
-    with_spin "Copying ${selection} to clipboard…" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+    copy_with_spin "Copying ${selection} to clipboard…" "${value}"
     post_copy_animation "Copied '${selection}' for ${login} @ ${company}!"
     # Remember last field for this login for higher-level preselect
     LAST_FIELD_SELECTED="${selection}"
@@ -203,13 +195,13 @@ login_browser() {
         # Options after the logins
         echo "➕ Add Login"
         echo "🛠️ Manage Logins"
-        echo "⬅ Back to companies"
+        BACK_TO_LABEL "companies"
       } | \
-      gum filter --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt) --placeholder "Select login…"
+      render_filter "Select login…" "Company: ${company}"
     ) || { clear_screen; return 0; }
 
     case "${selection}" in
-      "⬅ Back to companies")
+      "$(BACK_TO_LABEL "companies")")
         return 0 ;;
       "➕ Add Login")
         interactive_add_login_for_company "${company}" ;;
@@ -248,7 +240,7 @@ company_browser() {
         echo "⋯ Menu"
         echo "Quit"
       } | \
-      gum filter --placeholder "Select company…" --height "$(calc_body_height)" --padding "0 4 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
+      render_filter "Select company…" ""
     ) || { clear_screen; return 0; }
 
     case "${selection}" in

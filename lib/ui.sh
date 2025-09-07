@@ -96,6 +96,44 @@ _export_gum_padding() {
   : "${GUM_SPIN_PADDING:=0 ${left_pad} 0 ${right_pad}}"; export GUM_SPIN_PADDING
 }
 
+# =========================================================================
+# Standard UI constants and helpers for consistent UX
+# =========================================================================
+
+# Consistent back labels
+BACK_LABEL() { printf "%s" "⬅ Back"; }
+BACK_TO_LABEL() { printf "⬅ Back to %s" "$1"; }
+
+# Hints shown in headers for each component type
+_hint_choose() { printf "%s" "Hint: ↑/↓ move • Enter select • ESC back"; }
+_hint_filter() { printf "%s" "Hint: type to filter • Enter select • ESC back"; }
+_hint_input()  { printf "%s" "Hint: Enter submit • ESC cancel"; }
+_hint_multi()  { printf "%s" "Hint: Space toggle • Enter confirm • ESC cancel"; }
+
+# Centralized clipboard copy (cross-platform)
+copy_to_clipboard() {
+  # Usage: copy_to_clipboard "value"
+  local v
+  v="$1"
+  if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy
+  elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe
+  elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy
+  elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard
+  elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input
+  else
+    printf "%s" "$v"
+    echo "(Clipboard tool not found; printed value instead)" >&2
+  fi
+}
+
+# Perform clipboard copy with a spinner title
+# Usage: copy_with_spin "title" "value"
+copy_with_spin() {
+  local title="$1"; shift || true
+  local value="$1"
+  with_spin "${title}" bash -c 'v="$1"; if command -v pbcopy >/dev/null 2>&1; then printf "%s" "$v" | pbcopy; elif command -v clip.exe >/dev/null 2>&1; then printf "%s" "$v" | clip.exe; elif command -v wl-copy >/dev/null 2>&1; then printf "%s" "$v" | wl-copy; elif command -v xclip >/dev/null 2>&1; then printf "%s" "$v" | xclip -selection clipboard; elif command -v xsel >/dev/null 2>&1; then printf "%s" "$v" | xsel --clipboard --input; else printf "%s" "$v"; echo "(Clipboard tool not found; printed value instead)" >&2; fi' _ "${value}"
+}
+
 # Calculate menu padding for consistent centering across all menus
 # Usage: calc_menu_padding <menu_width>
 # Returns: padding string "0 <pad> 0 <pad>" for use with gum --padding
@@ -497,15 +535,37 @@ render_menu() {
   menu_pad=$(get_standard_menu_padding)
 
   if [ -n "$header" ]; then
-    gum choose --header "$header" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" $(gum_width_opt choose "$(calc_input_width)") --select-if-one $(gum_timeout_opt) "${items[@]}"
+    local combined_header
+    combined_header=$(printf "%s\n%s" "$header" "$(_hint_choose)")
+    gum choose --header "$combined_header" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" $(gum_width_opt choose "$(calc_input_width)") --select-if-one $(gum_timeout_opt) "${items[@]}"
   else
     GUM_CHOOSE_CURSOR_FOREGROUND="${THEME_CHOOSE_CURSOR}" \
     GUM_CHOOSE_SELECTED_FOREGROUND="${THEME_CHOOSE_SELECTED_FG}" \
     GUM_CHOOSE_ITEM_FOREGROUND="${THEME_CHOOSE_ITEM_FG}" \
     GUM_CHOOSE_SELECTED_PREFIX="✔" \
     GUM_CHOOSE_UNSELECTED_PREFIX=" " \
-    gum choose --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" --select-if-one $(gum_timeout_opt) "${items[@]}"
+    gum choose --header "$(_hint_choose)" --height "$(calc_menu_height)" --padding "0 ${menu_pad} 0 4" --select-if-one $(gum_timeout_opt) "${items[@]}"
   fi
+}
+
+# Standardized multi-select menu
+# Usage: render_menu_multi [--header "Header"] item1 item2 ...
+render_menu_multi() {
+  require_gum
+  local header=""
+  local items=()
+  local menu_pad
+
+  if [ "$1" = "--header" ]; then
+    header="$2"
+    shift 2
+  fi
+  items=("$@")
+  menu_pad=$(get_standard_menu_padding)
+
+  local combined_header
+  if [ -n "$header" ]; then combined_header=$(printf "%s\n%s" "$header" "$(_hint_multi)"); else combined_header="$(_hint_multi)"; fi
+  gum choose --no-limit --header "$combined_header" --height "$(calc_body_height)" --padding "0 ${menu_pad} 0 4" $(gum_width_opt choose "$(calc_input_width)") "${items[@]}"
 }
 
 # Standardized filter rendering function
@@ -519,9 +579,11 @@ render_filter() {
   filter_pad=$(get_standard_filter_padding)
 
   if [ -n "$header" ]; then
-    cat | gum filter --header "$header" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
+    local combined_header
+    combined_header=$(printf "%s\n%s" "$header" "$(_hint_filter)")
+    cat | gum filter --header "$combined_header" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
   else
-    cat | gum filter --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
+    cat | gum filter --header "$(_hint_filter)" --placeholder "$placeholder" --height "$(calc_body_height)" --padding "0 ${filter_pad} 0 4" $(gum_width_opt filter "$(calc_input_width)") --select-if-one $(gum_timeout_opt)
   fi
 }
 

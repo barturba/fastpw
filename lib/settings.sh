@@ -47,16 +47,16 @@ settings_menu() {
     setup_screen
     local action
 
-    action=$(gum choose --header "Settings" --height "$(calc_menu_height)" --padding "0 4 0 4" $(gum_width_opt choose "$(calc_input_width)") --select-if-one $(gum_timeout_opt) \
+    action=$(render_menu --header "Settings" \
       "🔑 Change Master" \
       "♻️ Reset" \
-      "⬅ Back") || { clear_screen; return 0; }
+      "$(BACK_LABEL)") || { clear_screen; return 0; }
 
     case "${action}" in
       "🔑 Change Master"|"Change Master")
         change_master ;;
       "♻️ Reset"|"Reset")
-        if gum confirm --affirmative "Reset" --negative "Cancel" --padding "${GUM_CONFIRM_PADDING:-"0 1"}" $(gum_timeout_opt) "This will DELETE your encrypted store and re-seed it. Continue?"; then
+        if render_confirm "This will DELETE your encrypted store and re-seed it. Continue?" "Reset" "Cancel"; then
           rm -f "${DATA_FILE}" "${SESSION_FILE}" && init_if_missing && gum_err "Store reset with seed data."
         fi ;;
       *)

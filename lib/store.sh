@@ -53,7 +53,7 @@ prompt_master_password() {
   fi
   if command -v gum >/dev/null 2>&1; then
     local pw
-    pw=$(gum input --password --placeholder "Enter master password" --width "$(calc_input_width)" 2>/dev/null) || exit 1
+    pw=$(render_password "Enter master password" "") || exit 1
     write_cached_password "${pw}"
     printf "%s" "${pw}"
   else

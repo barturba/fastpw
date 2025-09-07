@@ -3,7 +3,7 @@
 set -euo pipefail
 
 APP_NAME="FastPW"
-APP_VERSION="1.1.4"
+APP_VERSION="1.1.5"
 
 LIB_DIR="$(cd "$(dirname "$0")/../lib" >/dev/null 2>&1 && pwd -P)"
 
